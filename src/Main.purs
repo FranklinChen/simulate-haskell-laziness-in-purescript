@@ -21,18 +21,14 @@ data Data' = MkData (Lazy Int)
 
 -- | Haskell: data StrictData = MkStrict !Int
 --
--- Note that "strict" just means the Lazy Int is pre-forced by
--- a smart constructor.
+-- Note that "strict" means we can store just Int rather than Lazy Int.
 type StrictData = Lazy StrictData'
-data StrictData' = MkStrict (Lazy Int)
+data StrictData' = MkStrict Int
 
 -- | Smart constructor that forces. Haskell implicitly calls a smart
 -- constructor for any constructor call that has "strict" fields.
 mkStrict :: Lazy Int -> StrictData'
-mkStrict lazyN = MkStrict lazyN
-  where
-    -- Make sure the force happens.
-    _ = force lazyN
+mkStrict lazyN = MkStrict $ force lazyN
 
 -- | Haskell: newtype Newtype = MkNewtype Int
 --
@@ -56,7 +52,10 @@ fData lazyX = case force lazyX of
 -- Haskell: fStrict (MkStrict n) = [1, n]
 fStrict :: StrictData -> List (Lazy Int)
 fStrict lazyX = case force lazyX of
-  MkStrict lazyN -> cons (defer \_ -> 1) $ cons lazyN nil
+  MkStrict strictN ->
+    -- Need to recreate Lazy Int.
+    let lazyN = defer \_ -> strictN
+    in cons (defer \_ -> 1) $ cons lazyN nil
 
 -- | Pattern matching on a newtype constructor does no forcing.
 --
@@ -96,7 +95,8 @@ main = unsafePartial do
   -- Outputs "[1," before crashing.
   --lazyListLazyPrintLine $ fData (defer \_ -> MkData $ defer undefined)
 
-  -- Outputs nothing before crashing.
+  -- Outputs nothing before crashing, because smart constructor mkStrict,
+  -- when called, immediately forces the undefined thunk.
   --lazyListLazyPrintLine $ fStrict (defer \_ -> mkStrict $ defer undefined)
 
   -- Outputs "[1," before crashing.
