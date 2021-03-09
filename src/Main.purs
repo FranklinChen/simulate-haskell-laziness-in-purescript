@@ -5,8 +5,8 @@ import Prelude
 import Effect (Effect)
 import Effect.Console (logShow)
 import Data.Lazy (Lazy, defer, force)
-import Data.List.Lazy (nil, cons)
-import Data.List.Lazy.Types (List(..), Step(..))
+import Data.List.Lazy (List, nil, cons, step)
+import Data.List.Lazy.Types (Step(..))
 import Data.Traversable (traverse_)
 import Partial (crashWith)
 import Partial.Unsafe (unsafePartial)
@@ -63,16 +63,16 @@ fStrict lazyX = case force lazyX of
 fNewtype :: Newtype -> List (Lazy Int)
 fNewtype (MkNewtype lazyN) = cons (defer \_ -> 1) $ cons lazyN nil
 
--- | Fails: traverse_ is insufficiently lazy for Effect!!
+-- | Fails: traverse_ ends up forcing right to left!
 -- Intent: output one line per element.
 wrongLazyListLazyLogShow :: forall a. (Show a) => List (Lazy a) -> Effect Unit
 wrongLazyListLazyLogShow = traverse_ (logShow <<< force)
 
--- | Had to write the loop by hand to make work for Effect.
+-- | Had to write the loop by hand to make work left to right.
 lazyListLazyPrintLine :: forall a. (Show a) => List (Lazy a) -> Effect Unit
-lazyListLazyPrintLine (List lazyStep) = do
+lazyListLazyPrintLine lazyList = do
   write "["
-  case force lazyStep of
+  case step lazyList of
     Nil -> pure unit
     Cons lazyX rest -> do
       write $ show $ force lazyX
@@ -80,7 +80,7 @@ lazyListLazyPrintLine (List lazyStep) = do
   write "]\n"
 
 printRest :: forall a. (Show a) => List (Lazy a) -> Effect Unit
-printRest (List lazyStep) = case force lazyStep of
+printRest lazyList = case step lazyList of
   Nil -> pure unit
   Cons lazyX rest -> do
     write ", "
